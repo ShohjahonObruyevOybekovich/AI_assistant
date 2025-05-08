@@ -1,0 +1,22 @@
+
+{ "start_message":{
+    "uz": "Assalomu alaykum! \uD83D\uDC4B Botimizga xush kelibsiz! \uD83C\uDF89 Iltimos, davom etish uchun tilni tanlang:",
+    "ru": "Привет! \uD83D\uDC4B Добро пожаловать в наш бот! \uD83C\uDF89 Пожалуйста, выберите язык ниже:",
+    "eng": "Hello! \uD83D\uDC4B Welcome to our bot! \uD83C\uDF89 Please choose your language below:"
+  },
+  "is_blocked": {
+    "uz": "Afsuski, sizning botdan foydalanish imkoniyatingiz vaqtincha cheklangan. Qo‘shimcha ma'lumot uchun administrator bilan bog‘laning.",
+    "en": "Unfortunately, your access to the bot has been temporarily restricted. For further assistance, please contact the administrator.",
+    "ru": "К сожалению, ваш доступ к боту временно ограничен. Для получения дополнительной информации обратитесь к администратору."
+  },
+   "language_selected": {
+    "uz": "Til muvaffaqiyatli tanlandi ✅",
+    "en": "Language has been successfully selected ✅",
+    "ru": "Язык успешно выбран ✅"
+  },
+  "say_something_to_start": {
+    "uz" :"Botdan foydalanish uchun ovozli xabar yuboring >...",
+    "en" : "",
+    "ru" : ""
+  }
+}

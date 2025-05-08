@@ -1,0 +1,16 @@
+  celery :
+  install redis
+celery -A celery_ worker --loglevel=INFO
+
+
+
+
+
+
+  363  docker images
+  364  docker build -t exam_shohjahon .
+  365  docker login
+  366  docker images
+  367  docker tag exam_shohjahon:latest shokhmee/exam_shohjahon
+  368  docker push shokhmee/exam_shohjahon
+  369  history
