@@ -160,6 +160,17 @@ class GptFunctions:
         "type": "ALL",
         "time": "",
     }}
+    
+    **Input:** "Kechagi soat ikki yarimdegi xisobotlarimi yubor."
+    
+    **Output:**
+    {{
+        "action": "list_finance",
+        "date": "09/05/2025",
+        "type": "ALL",
+        "time": "14:20-14:40",
+    }}
+    
     # Examples 
 
     **Input:** "Bugun men abetgi 2 da 100000 sum oylik oldim."
