@@ -41,6 +41,12 @@ class FinanceHandler:
         elif action == "dollar_course":
             return await self.dollar_course(data)
 
+        elif action == "user_session":
+            return await self.user_session(data)
+
+        elif action == "powered_by":
+            return await self.powered_by(data)
+
         else:
             return "⚠️ Tanlangan moliyaviy amal mavjud emas."
 
@@ -337,4 +343,11 @@ class FinanceHandler:
         return f"💱 {amount} {from_currency} ≈ {round(converted, 2)} {to_currency}"
 
     async def user_session(self, data):
-        ic(paste)
+        ic(data
+           )
+
+    async def powered_by(self, data):
+        lang = CustomUser.objects.get(chat_id=self.user_id).language
+        return get_text(
+            lang,"powered_by"
+        )

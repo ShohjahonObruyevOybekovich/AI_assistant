@@ -7,6 +7,7 @@ from aiogram.types import Message, BufferedInputFile, CallbackQuery
 from icecream import ic
 
 from account.models import CustomUser
+from debt.models import Debt
 from dispatcher import dp, TOKEN
 from tg_bot.buttons.inline import choose_language, cancel
 from tg_bot.handlers.finance import FinanceHandler
@@ -102,19 +103,31 @@ async def handle_voice(message: Message, bot: Bot):
         action_type = intent_result.get("action", "")
         ic(action_type)
 
-        actions = [
+        finance_actions = [
             "create_income",
             "create_expense",
             "edit_finance",
             "list_finance",
             "excel_data",
-            "dollar_course"
+            "dollar_course",
+            "user_session",
+            "powered_by",
+        ]
+
+        debt_actions = [
+            "create_debt",
+            "repay_debt",
+            "update_debt_due",
+            "delete_debt",
+            "list_debt",
+            "report_debt",
         ]
 
         if not action_type:
             await message.reply(get_text(lang, "unknown_command"))
 
-        elif action_type in actions:
+
+        elif action_type in finance_actions:
             finance = FinanceHandler(user_id=message.from_user.id)
             result = await finance.route(intent_result)
 
@@ -122,6 +135,17 @@ async def handle_voice(message: Message, bot: Bot):
                 await message.answer_document(result, caption="📊 Hisobot tayyor!")
             else:
                 await message.answer(result)
+
+
+        elif action_type in debt_actions:
+            debt = Debt(user_id=message.from_user.id)
+            result = await debt.route(intent_result)
+
+            if isinstance(result, BufferedInputFile):
+                await message.answer_document(result, caption="📊 Hisobot tayyor!")
+            else:
+                await message.answer(result)
+
 
         else:
             await message.reply(get_text(lang, "unsupported_action"))

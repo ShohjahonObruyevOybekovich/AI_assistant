@@ -222,7 +222,7 @@ class GptFunctions:
 
     **Output:**
     {{
-        "action": "powered_by"
+            "action": "powered_by"
     }}
 
     # Notes

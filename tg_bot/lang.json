@@ -43,5 +43,10 @@
     "uz": "❌ Valyuta ma'lumotlarini olishda xatolik yuz berdi.",
     "en": "❌ An error occurred while fetching currency data.",
     "ru": "❌ Произошла ошибка при получении данных о валюте."
+  },
+  "powered_by": {
+    "uz": "🔧 Ushbu bot Sector Soft IT kompaniyasi tomonidan ishlab chiqilgan. Biz mobil ilovalar, veb-saytlar, ERP tizimlar, e-commerce va boshqa IT yechimlarni ishlab chiqamiz.",
+    "en": "🔧 This bot is developed by Sector Soft IT Company. We build mobile apps, websites, ERP systems, e-commerce platforms, and other custom IT solutions.",
+    "ru": "🔧 Этот бот разработан компанией Sector Soft IT. Мы создаем мобильные приложения, веб-сайты, ERP-системы, платформы электронной коммерции и другие IT-решения."
   }
 }

@@ -46,6 +46,9 @@ INSTALLED_APPS = [
     "finance",
     "command",
     "gpt",
+    "debt",
+    "meeting",
+    "plan",
 
     #  Installed libraries
     "rest_framework",
