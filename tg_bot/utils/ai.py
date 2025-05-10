@@ -1,141 +1,202 @@
-from icecream import ic
-from openai import OpenAI
-from decouple import config
-from datetime import datetime
 import json
-from finance.models import FinanceAction
-from account.models import CustomUser
-from django.db.models import Sum
+import re
+from datetime import datetime
+import os
 
-client = OpenAI(api_key=config("AI_TOKEN"))
+from decouple import config
+from openai import AsyncOpenAI
+from django.utils import timezone
+from icecream import ic
 
-def extract_intent_and_handle(prompt_text: str, user_telegram_id: str) -> dict:
-    intent_prompt = f"""
-    You are a finance assistant that understands Uzbek.
-    Determine the user's intent from this sentence: "{prompt_text}"
 
-    Respond with only one word in lowercase:
-    - "create" if they are trying to save or register a financial action (e.g., "berdim", "olganman", "qarz berdim")
-    - "query" if they are asking for financial status or logs (e.g., "yubor", "ko‘rsat", "hisobot", "tahlil qil")
-    If unsure, respond with "unknown".
-    """
-    try:
-        intent_resp = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": intent_prompt}],
-            temperature=0,
-        )
-        intent = intent_resp.choices[0].message.content.strip().lower()
+class GptFunctions:
+    def __init__(self):
+        self.client = AsyncOpenAI(api_key=config("AI_TOKEN"))
 
-        if intent == "create":
-            return handle_create_action(prompt_text, user_telegram_id)
-        elif intent == "query":
-            return handle_query_logs(prompt_text, user_telegram_id)
-        else:
-            return {"error": "Unknown intent", "raw_response": intent}
+    async def prompt_to_json(self, user_id, text: str):
+        INSTRUCTION = """Convert voice commands in Uzbek into JSON commands with the specified structure.
 
-    except Exception as e:
-        return {"error": str(e)}
+    - Extract key information such as action type, name, time, and other relevant details from the voice command.
+    - Ensure the output JSON is consistent with the required fields and format.
 
-def handle_create_action(prompt_text: str, user_telegram_id: str) -> dict:
-    prompt = f"""
-    You are a smart Uzbek finance assistant.
-    Extract the following structured fields from this sentence:
-    Sentence: "{prompt_text}"
+    # Steps
 
-    Return as pure JSON with no explanation:
+    1. **Identify the Action**: Determine the primary action from the prompt, translating from Uzbek if necessary. use check_free_time for checking for free time and check_free_date for checking time for date 
+    2. **Our existing actions**: 'create_meeting*', 'list_meetings*', 'send_document*', 'remind_something', 'check_free_time','check_free_date','create_income', 'create_expense', 'list_finance', 'excel_data', 'currency_price', 'powered_by' . Prioritize actions with * at the end
+    3. **Extract Details**: Parse the Uzbek voice command to extract details such as name, time, and other relevant information.
+    4. **Format Date and Time**: Convert and format the date and time from the command to the "dd/mm/yyyy hh:mm" format.
+    5. **Construct JSON**: Assemble the extracted information into the JSON command with the following structure.
+    6. **Accuracy**: If Accuracy is low just return empty string in action field
+    7. **Actions**: User can ask for several thing. Create meeting, list meetings, Ask some documents.
+
+    # Output Format
+
+    The output should be a JSON object with the following fields:
+    - **action**: The primary action in lowercase with underscores.
+    - **name**: The name of the person involved.
+    - **time**: The date and time of meeting, document, reminder in "dd/mm/yyyy hh:mm" format or empty.If in contex there is no time exactly
+    mentioned just return time_empty field.Example "08/05/2025 ", time_empty = True
+    - **phone_number**: Include the phone number if provided, or an empty string otherwise.
+    - **amount**: Income or Expanse amount or 0
+    - **reason**: Reason of Income, Expanse, Meeting, place of meeting or empty string
+    - **currency**: Currency of finance (USD | UZS)
+    - **remind_text**: Text for reminding something. You have to add some meaningful text without grammar mistakes. in uzbek language
+    - **document_id**: list of Id of document which provided to you.
+
+    # Finance actions
+
+    When the action is related to **create_income** or **create_expense** or **list_finance** respond with a nested object like this:
+    
+    # Additional Clarifications
+
+    - `time_empty` must be included as true if the user only says a date or vague time (e.g., “ertalab”, “kechasi”, “bugun” without specific hours).
+    - `type` for list_finance must always be one of: "INCOME", "EXPENSE", or "ALL". Do not return other words.
+    - The `date` field for `list_finance` must be present in `"dd/mm/yyyy"` format, even if only a vague reference like "bugun" or "kecha" was made.
+
+    # Examples
+    **Input:** "Ikki kun avvalgi mening kirimlarim excel ro'yxatini tashlab ber."
+    **Output:**
     {{
-      "action_type": "give", 
-      "amount": 100000,
-      "currency": "UZS",
-      "target_person": "my brother",
-      "note": "optional",
-      "date": "2025-05-08"
+        "action": "excel_data",
+        "date": "08/05/2025",
+        "type": "INCOME",
+        "time": "",
     }}
-    Respond ONLY with JSON that starts with '{{' and is valid.
-    """
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0,
+    
+    **Input:** "Bir oylik xisobotlarim excel ro'yxatini tashlab ber."
+    **Output:**
+    {{
+        "action": "excel_data",
+        "date": "10/04/2025-10/05/2025",
+        "type": "ALL",
+        "time": "",
+    }}
+    
+    
+    **Output:**
+    {{
+        "action": "list_finance",
+        "date": "08/05/2025",
+        "type": "INCOME",
+        "time": "",
+    }}
+    
+    **Input:** "Ikki kun avvalgi mening kirimlarim ro'yxatini tashlab ber."
+    
+    **Output:**
+    {{
+        "action": "list_finance",
+        "date": "08/05/2025",
+        "type": "INCOME",
+        "time": "",
+    }}
+    
+    **Input:** "Bugungi kun uchun Bekjonga bergan chiqimlarimni tashlab ber."
+    
+    **Output:**
+    {{
+        "action": "list_finance",
+        "date": "10/05/2025",
+        "type": "EXPANSE",
+        "time": "",
+    }}
+    
+    **Input:** "Bugungi kun uchun xisobotlarimni yubor."
+    
+    **Output:**
+    {{
+        "action": "list_finance",
+        "date": "10/05/2025",
+        "type": "ALL",
+        "time": "",
+    }}
+    # Examples 
+
+    **Input:** "Bugun men abetgi 2 da 100000 sum oylik oldim."
+
+    **Output:**
+    {{
+        "action": "create_income",
+        "amount": "100000",
+        "currency": "UZS",
+        "reason": "Ish haqi",
+        "time": "08/05/2025 14:00"
+        "time_empty": false,
+    }}
+
+    **Input:** "Kecha ukamga 500000 ming sum qarz bergan edim."
+
+    **Output:**
+    {{
+        "action": "create_expense",
+        "amount": "500000",
+        "currency": "UZS",
+        "reason": "Qarz berish",
+        "time": "07/05/2025 14:00"
+    }}
+
+    # Examples
+
+    **Input:** "ikkiming yigirma to'rtinchi yil 22 Oktabr da  o'n to'rtu no'l no'lga Shukurulloh bilan uchrashuv belgila"
+
+    **Output:**
+    {{
+        "action": "create_meeting",
+        "name": "Shukurulloh",
+        "time": "22/10/2024 14:00",
+        "phone_number": ""
+    }}
+
+    **Input:** "Manga yigirma ikkiyu no'l no'lga uxlashimni eslat."
+
+    **Output:**
+    {{
+        "action": "remind_something",
+        "name": "Remind Sleep",
+        "time": "{today} 22:00",
+        "remind_text": "Soat 22:00 da uhlashingiz kerak."
+    }}
+
+    **Input:** "Bu botni kim yaratgan."
+
+    **Output:**
+    {{
+        "action": "powered_by"
+    }}
+
+    # Notes
+
+    - Pay attention to varying phrasings in Uzbek voice commands and ensure accurate extraction.
+    - Handle different potential formats for dates and times, converting them to the required format.
+    - Response must be only json. no other texts around json brace (before and after)
+    - Today is {today}
+
+    Documents list:
+        {documents}
+    """.format(
+                today=timezone.now().strftime("%d/%m/%Y"),
+                documents="N/A"
+            )
+        response = await self.client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": INSTRUCTION},
+                {"role": "user", "content": text},
+            ],
+            temperature=0.2,
         )
-        content = response.choices[0].message.content.strip()
 
-        ic(content)
+        raw_content = response.choices[0].message.content.strip()
+        ic("RAW GPT OUTPUT:", raw_content)
 
-        if not content.startswith("{"):
-            return {"error": "Invalid JSON format from LLM", "raw_response": content}
+        # Make sure GPT response is valid JSON and parse it
+        if raw_content.startswith("```"):
+            raw_content = re.sub(r"^```(?:json)?\n?", "", raw_content)  # remove ```json or ```
+            raw_content = re.sub(r"\n?```$", "", raw_content)  # remove ending ```
 
         try:
-            data = json.loads(content)
+            result = json.loads(raw_content)
+            return result
         except json.JSONDecodeError as e:
-            return {"error": "JSON parsing failed", "exception": str(e), "raw_response": content}
-
-        if data.get("date"):
-            try:
-                datetime.strptime(data["date"], "%Y-%m-%d")
-            except ValueError:
-                data["date"] = None
-
-        data.setdefault("currency", "UZS")
-
-        user = CustomUser.objects.get(chat_id=str(user_telegram_id))
-        FinanceAction.objects.create(
-            user=user,
-            action_type=data["action_type"],
-            amount=data["amount"],
-            currency=data["currency"],
-            target_person=data.get("target_person"),
-            note=data.get("note"),
-            date=data.get("date")
-        )
-        data["action_type"] = "create"
-        return data
-
-    except Exception as e:
-        return {"error": str(e)}
-
-def handle_query_logs(prompt_text: str, user_telegram_id: str) -> dict:
-    month_prompt = f"""
-    You are an assistant that extracts a month from a sentence in Uzbek.
-
-    Example 1: "menga may oyi xarajatlarini yubor" → "2025-05"
-    Example 2: "bugungi xarajatlarimni yubor" → "{datetime.today().strftime('%Y-%m')}"
-    Example 3: "mart oyidagi daromadlarimni ko'rsat" → "2025-03"
-
-    Extract only in YYYY-MM format:
-    "{prompt_text}"
-    """
-    try:
-        month_resp = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": month_prompt}],
-            temperature=0,
-        )
-        parsed_date = month_resp.choices[0].message.content.strip()
-
-        try:
-            year, month = map(int, parsed_date.split("-"))
-        except Exception:
-            today = datetime.today()
-            year, month = today.year, today.month
-
-        user = CustomUser.objects.get(chat_id=str(user_telegram_id))
-        logs = FinanceAction.objects.filter(user=user, date__year=year, date__month=month)
-
-        total = logs.aggregate(total=Sum("amount"))["total"] or 0
-        count = logs.count()
-        items = [f"{a.action_type}: {a.amount} {a.currency} ({a.note or ''})" for a in logs]
-
-        return {
-            "action_type": "query",
-            "year": year,
-            "month": month,
-            "entries": count,
-            "total_amount": float(total),
-            "logs": items or ["No records found"]
-        }
-
-    except Exception as e:
-        return {"error": str(e)}
+            ic("❌ JSON decoding failed:", e)
+            return {"action": ""}

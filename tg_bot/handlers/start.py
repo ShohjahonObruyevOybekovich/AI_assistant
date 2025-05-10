@@ -1,78 +1,74 @@
 import os
 
-from aiogram import types, Bot, F
+from aiogram import Bot, F, types
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.types import Message, BufferedInputFile
 from icecream import ic
 
 from account.models import CustomUser
-from dispatcher import dp , TOKEN
-from tg_bot.buttons.inline import choose_language
-from tg_bot.state.main import *
-from tg_bot.utils.ai import  extract_intent_and_handle
+from dispatcher import dp, TOKEN
+from tg_bot.buttons.inline import choose_language, cancel
+from tg_bot.handlers.finance import FinanceHandler
+from tg_bot.state.main import User
+from tg_bot.utils.ai import GptFunctions
 from tg_bot.utils.stt import stt
 from tg_bot.utils.translator import get_text, load_locales
 
 bot = Bot(token=TOKEN)
+gpt = GptFunctions()
 load_locales()
-@dp.message(lambda msg: msg.text == "/start")
-async def command_start_handler(message: Message, state: FSMContext) -> None:
 
+
+# /start handler
+@dp.message(F.text == "/start")
+async def command_start_handler(message: Message, state: FSMContext) -> None:
     await state.clear()
+
     user = CustomUser.objects.filter(chat_id=message.from_user.id).first()
     lang = getattr(user, 'language', 'uz')
 
+    # First-time user registration
     if not user:
-        CustomUser.objects.create(chat_id=message.from_user.id, language=lang, full_name=message.from_user.full_name)
-        await message.answer(
-            text=get_text(lang, "start_message"),
-            reply_markup=choose_language()
+        CustomUser.objects.create(
+            chat_id=message.from_user.id,
+            language=lang,
+            full_name=message.from_user.full_name,
         )
+        await message.answer(get_text(lang, "start_message"), reply_markup=choose_language())
         await state.set_state(User.lang)
+        return
 
-    if user and user.role == "ADMIN" and not user.is_blocked:
-        # await message.answer()
+    # Blocked user
+    if user.is_blocked:
+        await message.answer(get_text(lang, "is_blocked"), reply_markup=choose_language())
+        return
+
+    # Admin specific logic can go here
+    if user.role == "ADMIN":
+        # Optional: send admin-specific buttons or info
         pass
+    if user:
+        await message.answer(get_text(lang, "say_something_to_start"))
 
 
-    if user and user.is_blocked:
-        await message.answer(
-            text=get_text(lang, "is_blocked"),
-            reply_markup=choose_language()
-        )
-
-    await message.answer(
-        text=get_text(lang, "start_message"),
-    )
-    await message.answer(
-        text=get_text(lang, "say_something_to_start"),
-    )
-
-
-
+# Handle language selection
 @dp.message(User.lang)
-async def user_lang_handler(message: Message, state: FSMContext) :
-    data = await state.get_data()
-    data["lang"] = message.text
-    await state.update_data(data)
+async def user_lang_handler(message: Message, state: FSMContext):
+    selected_lang = message.text.strip().lower()
     user = CustomUser.objects.filter(chat_id=message.from_user.id).first()
 
-    if user :
-        user.language = data["lang"]
+    if user:
+        user.language = selected_lang
         user.save()
-        lang = getattr(user, 'language', 'uz')
-        await message.reply(
-            text=get_text(lang,"language_selected")
-        )
-        await message.answer(
-            text=get_text(lang, "say_something_to_start"),
-        )
+        await message.reply(get_text(selected_lang, "language_selected"))
+        await message.answer(get_text(selected_lang, "say_something_to_start"))
+
     await state.clear()
 
 
-
+# Voice message handler
 @dp.message(F.content_type == types.ContentType.VOICE)
-async def handle_voice(message: types.Message, bot: Bot):
+async def handle_voice(message: Message, bot: Bot):
     file = await bot.get_file(message.voice.file_id)
     file_path = f"voice_{message.from_user.id}.ogg"
     destination_path = file_path.replace(".ogg", ".mp3")
@@ -85,27 +81,38 @@ async def handle_voice(message: types.Message, bot: Bot):
     os.system(f"ffmpeg -i {file_path} -ar 16000 -ac 1 {destination_path}")
 
     if not os.path.exists(destination_path):
-        await message.answer("\u274c Failed to convert audio.")
+        await message.answer("❌ Failed to convert audio.")
         return
 
+    # Transcribe voice
     result = stt(destination_path)
     text = result.get("result", {}).get("text") if isinstance(result, dict) else result
-
-    await message.reply(f"🔊 Transcribed: {text}")
+    lang = CustomUser.objects.filter(chat_id=message.from_user.id).first()
+    await message.reply(
+        text=f"{get_text(lang, "message")} : {text}",
+        reply_markup=cancel(lang=lang,id=message.from_user.id),
+    )
 
     if text:
-        intent_result = extract_intent_and_handle(text, str(message.from_user.id))
-        if "error" in intent_result:
-            await message.reply(f"⚠️ {intent_result['error']}")
-        else:
-            action_type = intent_result.get("action_type", "query")
-            logs = intent_result.get("logs")
-            if logs:
-                response = f"✅ Action Type: {action_type}\n" + "\n".join(logs)
-            else:
-                response = f"✅ Action Type: {action_type}\n" + "\n".join(f"{k}: {v}" for k, v in intent_result.items() if k != "action_type")
-            await message.reply(response)
+        intent_result = await gpt.prompt_to_json(str(message.from_user.id), text)
+        ic(intent_result)
 
+        action_type = intent_result.get("action", "")
+        if not action_type:
+            await message.reply(get_text(lang, "unknown_command"))
+
+        elif action_type in ["create_income", "create_expense", "list_finance","excel_data"]:
+            finance = FinanceHandler(user_id=message.from_user.id)
+            result = await finance.route(intent_result)
+
+            if isinstance(result, BufferedInputFile):
+                await message.answer_document(result, caption="📊 Hisobot tayyor!")
+            else:
+                await message.answer(result)
+
+        else:
+            await message.reply(get_text(lang, "unsupported_action"))
+
+    # Cleanup
     os.remove(file_path)
     os.remove(destination_path)
-

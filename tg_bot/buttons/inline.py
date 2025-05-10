@@ -5,6 +5,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from asgiref.sync import sync_to_async
 
 from tg_bot.buttons.text import ortga
+from tg_bot.utils.translator import get_text
 
 
 def choose_language():
@@ -13,3 +14,7 @@ def choose_language():
     uz = InlineKeyboardButton(text='🇺🇿 Uzbek', callback_data='uz')
     return InlineKeyboardMarkup(inline_keyboard=[[en], [ru], [uz]])
 
+def cancel(id, lang):
+    txt = get_text(lang,"cancel")
+    button = InlineKeyboardButton(text=txt, callback_data=f"cancel_{id}")
+    return InlineKeyboardMarkup(inline_keyboard=[[button]])

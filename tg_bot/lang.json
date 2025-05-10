@@ -1,22 +1,42 @@
 
 { "start_message":{
-    "uz": "Assalomu alaykum! \uD83D\uDC4B Botimizga xush kelibsiz! \uD83C\uDF89 Iltimos, davom etish uchun tilni tanlang:",
-    "ru": "Привет! \uD83D\uDC4B Добро пожаловать в наш бот! \uD83C\uDF89 Пожалуйста, выберите язык ниже:",
-    "eng": "Hello! \uD83D\uDC4B Welcome to our bot! \uD83C\uDF89 Please choose your language below:"
+    "uz": "\uD83E\uDD16 Assalomu alaykum! \uD83D\uDC4B Botimizga xush kelibsiz! \uD83C\uDF89 Iltimos, davom etish uchun tilni tanlang:",
+    "ru": "\uD83E\uDD16 Привет! \uD83D\uDC4B Добро пожаловать в наш бот! \uD83C\uDF89 Пожалуйста, выберите язык ниже:",
+    "eng": "\uD83E\uDD16 Hello! \uD83D\uDC4B Welcome to our bot! \uD83C\uDF89 Please choose your language below:"
   },
   "is_blocked": {
-    "uz": "Afsuski, sizning botdan foydalanish imkoniyatingiz vaqtincha cheklangan. Qo‘shimcha ma'lumot uchun administrator bilan bog‘laning.",
-    "en": "Unfortunately, your access to the bot has been temporarily restricted. For further assistance, please contact the administrator.",
-    "ru": "К сожалению, ваш доступ к боту временно ограничен. Для получения дополнительной информации обратитесь к администратору."
+    "uz": "\uD83E\uDD16 Afsuski, sizning botdan foydalanish imkoniyatingiz vaqtincha cheklangan. Qo‘shimcha ma'lumot uchun administrator bilan bog‘laning.",
+    "en": "\uD83E\uDD16 Unfortunately, your access to the bot has been temporarily restricted. For further assistance, please contact the administrator.",
+    "ru": "\uD83E\uDD16 К сожалению, ваш доступ к боту временно ограничен. Для получения дополнительной информации обратитесь к администратору."
   },
    "language_selected": {
-    "uz": "Til muvaffaqiyatli tanlandi ✅",
-    "en": "Language has been successfully selected ✅",
-    "ru": "Язык успешно выбран ✅"
+    "uz": "\uD83E\uDD16 Til muvaffaqiyatli tanlandi ✅",
+    "en": "\uD83E\uDD16 Language has been successfully selected ✅",
+    "ru": "\uD83E\uDD16 Язык успешно выбран ✅"
   },
   "say_something_to_start": {
-    "uz" :"Botdan foydalanish uchun ovozli xabar yuboring >...",
-    "en" : "",
-    "ru" : ""
+    "uz": "🤖 Boshlash uchun ovozli xabar yuboring yoki menga biror narsa ayting!",
+    "en": "🤖 Send a voice message or say something to get started!",
+    "ru": "🤖 Чтобы начать, отправьте голосовое сообщение или напишите что-нибудь!"
+  },
+  "cancel": {
+    "uz": "\uD83E\uDD16 Bekor qilish",
+    "en": "\uD83E\uDD16 Cancel",
+    "ru": "\uD83E\uDD16  Отмена"
+  },
+  "message": {
+    "uz": "🤖 Xabar",
+    "en": "🤖 Message",
+    "ru": "🤖 Сообщение"
+  },
+  "unknown_command": {
+  "uz": "⚠️ Tushunarsiz buyruq.",
+  "en": "⚠️ Unrecognized command.",
+  "ru": "⚠️ Нераспознанная команда."
+  },
+  "unsupported_action": {
+  "uz": "⚠️ Bu harakat hozircha qo‘llab-quvvatlanmaydi.",
+  "en": "⚠️ This action is not supported yet.",
+  "ru": "⚠️ Это действие пока не поддерживается."
   }
 }

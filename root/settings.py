@@ -44,7 +44,8 @@ INSTALLED_APPS = [
     "account",
     "bot",
     "finance",
-
+    "command",
+    "gpt",
 
     #  Installed libraries
     "rest_framework",
