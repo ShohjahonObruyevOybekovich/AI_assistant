@@ -2,7 +2,8 @@ import os
 
 from aiogram import Bot, F, types
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, BufferedInputFile
+from aiogram.handlers import CallbackQueryHandler
+from aiogram.types import Message, BufferedInputFile, CallbackQuery
 from icecream import ic
 
 from account.models import CustomUser
@@ -31,7 +32,6 @@ async def command_start_handler(message: Message, state: FSMContext) -> None:
     if not user:
         CustomUser.objects.create(
             chat_id=message.from_user.id,
-            language=lang,
             full_name=message.from_user.full_name,
         )
         await message.answer(get_text(lang, "start_message"), reply_markup=choose_language())
@@ -51,17 +51,18 @@ async def command_start_handler(message: Message, state: FSMContext) -> None:
         await message.answer(get_text(lang, "say_something_to_start"))
 
 
-# Handle language selection
-@dp.message(User.lang)
-async def user_lang_handler(message: Message, state: FSMContext):
-    selected_lang = message.text.strip().lower()
-    user = CustomUser.objects.filter(chat_id=message.from_user.id).first()
+@dp.callback_query(lambda call: call.data in ["uz" , "ru" , "en"])
+async def user_lang_handler(call: CallbackQuery, state: FSMContext):
+    await call.message.edit_reply_markup(reply_markup=None)
+
+    selected_lang = call.data.strip().lower()
+    user = CustomUser.objects.filter(chat_id=call.from_user.id).first()
 
     if user:
         user.language = selected_lang
         user.save()
-        await message.reply(get_text(selected_lang, "language_selected"))
-        await message.answer(get_text(selected_lang, "say_something_to_start"))
+        await call.message.reply(get_text(selected_lang, "language_selected"))
+        await call.message.answer(get_text(selected_lang, "say_something_to_start"))
 
     await state.clear()
 
@@ -84,10 +85,11 @@ async def handle_voice(message: Message, bot: Bot):
         await message.answer("❌ Failed to convert audio.")
         return
 
-    # Transcribe voice
     result = stt(destination_path)
     text = result.get("result", {}).get("text") if isinstance(result, dict) else result
+
     lang = CustomUser.objects.filter(chat_id=message.from_user.id).first()
+
     await message.reply(
         text=f"{get_text(lang, "message")} : {text}",
         reply_markup=cancel(lang=lang,id=message.from_user.id),
@@ -98,10 +100,21 @@ async def handle_voice(message: Message, bot: Bot):
         ic(intent_result)
 
         action_type = intent_result.get("action", "")
+        ic(action_type)
+
+        actions = [
+            "create_income",
+            "create_expense",
+            "edit_finance",
+            "list_finance",
+            "excel_data",
+            "dollar_course"
+        ]
+
         if not action_type:
             await message.reply(get_text(lang, "unknown_command"))
 
-        elif action_type in ["create_income", "create_expense", "list_finance","excel_data"]:
+        elif action_type in actions:
             finance = FinanceHandler(user_id=message.from_user.id)
             result = await finance.route(intent_result)
 
@@ -112,7 +125,6 @@ async def handle_voice(message: Message, bot: Bot):
 
         else:
             await message.reply(get_text(lang, "unsupported_action"))
-
     # Cleanup
     os.remove(file_path)
     os.remove(destination_path)

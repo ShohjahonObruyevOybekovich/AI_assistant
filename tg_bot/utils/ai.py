@@ -22,7 +22,7 @@ class GptFunctions:
     # Steps
 
     1. **Identify the Action**: Determine the primary action from the prompt, translating from Uzbek if necessary. use check_free_time for checking for free time and check_free_date for checking time for date 
-    2. **Our existing actions**: 'create_meeting*', 'list_meetings*', 'send_document*', 'remind_something', 'check_free_time','check_free_date','create_income', 'create_expense', 'list_finance', 'excel_data', 'currency_price', 'powered_by' . Prioritize actions with * at the end
+    2. **Our existing actions**: 'create_meeting*', 'list_meetings*', 'send_document*', 'remind_something', 'check_free_time','check_free_date','create_income', 'create_expense', 'edit_finance', "dollar_course", 'list_finance', 'excel_data', 'currency_price', 'powered_by' . Prioritize actions with * at the end
     3. **Extract Details**: Parse the Uzbek voice command to extract details such as name, time, and other relevant information.
     4. **Format Date and Time**: Convert and format the date and time from the command to the "dd/mm/yyyy hh:mm" format.
     5. **Construct JSON**: Assemble the extracted information into the JSON command with the following structure.
@@ -42,19 +42,76 @@ class GptFunctions:
     - **currency**: Currency of finance (USD | UZS)
     - **remind_text**: Text for reminding something. You have to add some meaningful text without grammar mistakes. in uzbek language
     - **document_id**: list of Id of document which provided to you.
+    - **from**: The exchange money that currently have an amount.
+    - **to**: The money that wanted to know the amount after the exchange.
 
-    # Finance actions
-
-    When the action is related to **create_income** or **create_expense** or **list_finance** respond with a nested object like this:
-    
     # Additional Clarifications
 
     - `time_empty` must be included as true if the user only says a date or vague time (e.g., “ertalab”, “kechasi”, “bugun” without specific hours).
     - `type` for list_finance must always be one of: "INCOME", "EXPENSE", or "ALL". Do not return other words.
     - The `date` field for `list_finance` must be present in `"dd/mm/yyyy"` format, even if only a vague reference like "bugun" or "kecha" was made.
-
+    - The keys of dollar_course is USD, EUR, RUB, GBP, JPY, CNY, KZT, SUM, TRY
+    - If the said about one type of money always return to the second "to" key UZB.
     # Examples
+    
+    **Input:** "Kechagi yuz ming xarajatimi bir yuz yigirma minga uzgartir."
+    
+    **Output:**
+    {{
+      "action": "edit_finance",
+      "type": "EXPENSE",
+      "from": "100000",
+      "to": "120000",
+      "changed": "amount"
+    }} 
+    
+    
+    **Input:** "Bugun soat uch da kiritgan besh yuz ming sum foydamni to'rt yuz qirq sakkiz minga o'zgartir"
+    
+    **Output:**
+    {{
+      "action": "edit_finance",
+      "type": "INCOME",
+      "from": "500000",
+      "to": "448000",
+      "changed": "amount"
+    }} 
+    
+    **Input:** "Bugun soat uch da kiritgan besh yuz ming sum foydamni chiqimga o'zgartir"
+    
+    **Output:**
+    {{
+      "action": "edit_finance",
+      "type": "INCOME",
+      "from": "500000",
+      "to": "-500000",
+      "changed": "type"
+    }} 
+    
+    
+    **Input:** "Mening 250 dollarim sumda qancha buladi"
+    
+    **Output:**
+    {{
+      "action": "dollar_course",
+      "from": "USD",
+      "to": "UZS",
+      "amount": 250
+    }} 
+    
+    **Input:** "Dollar kursi qancha."
+    
+    **Output:**
+    {{
+      "action": "dollar_course",
+      "from": "USD",
+      "to": "UZS",
+      "amount": 100
+    }} 
+    
+    
     **Input:** "Ikki kun avvalgi mening kirimlarim excel ro'yxatini tashlab ber."
+    
     **Output:**
     {{
         "action": "excel_data",
@@ -64,6 +121,7 @@ class GptFunctions:
     }}
     
     **Input:** "Bir oylik xisobotlarim excel ro'yxatini tashlab ber."
+    
     **Output:**
     {{
         "action": "excel_data",
@@ -72,14 +130,6 @@ class GptFunctions:
         "time": "",
     }}
     
-    
-    **Output:**
-    {{
-        "action": "list_finance",
-        "date": "08/05/2025",
-        "type": "INCOME",
-        "time": "",
-    }}
     
     **Input:** "Ikki kun avvalgi mening kirimlarim ro'yxatini tashlab ber."
     

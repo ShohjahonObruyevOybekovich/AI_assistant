@@ -38,5 +38,10 @@
   "uz": "⚠️ Bu harakat hozircha qo‘llab-quvvatlanmaydi.",
   "en": "⚠️ This action is not supported yet.",
   "ru": "⚠️ Это действие пока не поддерживается."
+  },
+  "currency_fetch_error": {
+    "uz": "❌ Valyuta ma'lumotlarini olishda xatolik yuz berdi.",
+    "en": "❌ An error occurred while fetching currency data.",
+    "ru": "❌ Произошла ошибка при получении данных о валюте."
   }
 }
