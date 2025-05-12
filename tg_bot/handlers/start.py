@@ -9,7 +9,7 @@ from icecream import ic
 from account.models import CustomUser
 from debt.models import Debt
 from dispatcher import dp, TOKEN
-from tg_bot.buttons.inline import choose_language, cancel
+from tg_bot.buttons.inline import choose_language, cancel, phone_number_btn
 from tg_bot.handlers.finance import FinanceHandler
 from tg_bot.state.main import User
 from tg_bot.utils.ai import GptFunctions
@@ -52,7 +52,7 @@ async def command_start_handler(message: Message, state: FSMContext) -> None:
         await message.answer(get_text(lang, "say_something_to_start"))
 
 
-@dp.callback_query(lambda call: call.data in ["uz" , "ru" , "en"])
+@dp.callback_query(lambda call: call.data in ["uz", "ru", "en"])
 async def user_lang_handler(call: CallbackQuery, state: FSMContext):
     await call.message.edit_reply_markup(reply_markup=None)
 
@@ -62,10 +62,37 @@ async def user_lang_handler(call: CallbackQuery, state: FSMContext):
     if user:
         user.language = selected_lang
         user.save()
-        await call.message.reply(get_text(selected_lang, "language_selected"))
-        await call.message.answer(get_text(selected_lang, "say_something_to_start"))
+        await call.message.answer(get_text(selected_lang, "language_selected"))
+        await call.message.answer("📞 Iltimos, tugma orqali telefon raqam yuboring.", reply_markup=phone_number_btn())
+        await state.set_state(User.phone)
 
-    await state.clear()
+
+@dp.message(User.phone)
+async def handle_phone(message: Message, state: FSMContext):
+    if message.contact:
+        phone = message.contact.phone_number
+        existing_user = CustomUser.objects.filter(phone=phone).exclude(chat_id=message.from_user.id).first()
+
+        if existing_user:
+            await message.answer("❌ Bu telefon raqami boshqa foydalanuvchi tomonidan ishlatilmoqda.")
+            return
+
+        user = CustomUser.objects.filter(chat_id=message.from_user.id).first()
+        user.phone = phone
+        user.save()
+
+        await message.answer("✅ Telefon raqamingiz muvaffaqiyatli saqlandi.")
+        await state.clear()
+        await message.answer(get_text(user.language, "say_something_to_start"))
+    else:
+        await message.answer("📞 Iltimos, tugma orqali telefon raqam yuboring.")
+        await state.set_state(User.phone)
+
+
+
+@dp.message(lambda msg: not msg.voice and msg.text and msg.text.isalnum())
+async def ask_for_voice(msg:Message):
+    await msg.answer("Menga ovozli xabar yuboring ...")
 
 
 # Voice message handler
@@ -99,6 +126,12 @@ async def handle_voice(message: Message, bot: Bot):
     if text:
         intent_result = await gpt.prompt_to_json(str(message.from_user.id), text)
         ic(intent_result)
+
+        if isinstance(intent_result, list):
+            finance = FinanceHandler(user_id=message.from_user.id)
+            result = await finance.list_route(intent_result)
+            await message.answer(result)
+            return
 
         action_type = intent_result.get("action", "")
         ic(action_type)

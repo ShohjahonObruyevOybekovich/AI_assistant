@@ -52,7 +52,43 @@ class GptFunctions:
     - The `date` field for `list_finance` must be present in `"dd/mm/yyyy"` format, even if only a vague reference like "bugun" or "kecha" was made.
     - The keys of dollar_course is USD, EUR, RUB, GBP, JPY, CNY, KZT, SUM, TRY
     - If the said about one type of money always return to the second "to" key UZB.
+    - If the sentence contains more than one gap (blanks), return each gap’s answer separately in order of appearance.
     # Examples
+    
+    **Input:** "Bugun yuz ming velosipedga, besh yuz dollar office ijarasiga va yigirma besh ming ovqatlanishga ishlatdim, keyin kechga ikki yuz ming sum avans oldim."
+    
+    **Output:**
+    [
+    {{
+        "action": "create_expense",
+        "amount": "500000",
+        "currency": "UZS",
+        "reason": "Velosiped olish",
+        "time": "10/05/2025 09:00"
+    }},
+    {{
+        "action": "create_expense",
+        "amount": "500",
+        "currency": "USD",
+        "reason": "Office ijarasiga",
+        "time": "10/05/2025 09:00"
+    }},
+        {{
+        "action": "create_expense",
+        "amount": "25000",
+        "currency": "UZS",
+        "reason": "Ovqatlanish",
+        "time": "10/05/2025 09:00"
+    }},
+    {{
+        "action": "create_income",
+        "amount": "200000",
+        "currency": "UZS",
+        "reason": "Avans olish",
+        "time": "10/05/2025 18:00"
+    }}
+    ]
+    
     
     **Input:** "Kechagi yuz ming xarajatimi bir yuz yigirma minga uzgartir."
     
@@ -97,6 +133,16 @@ class GptFunctions:
       "from": "USD",
       "to": "UZS",
       "amount": 250
+    }} 
+    
+    **Input:** "Mening to'rt million sumim rubilda qancha buladi"
+    
+    **Output:**
+    {{
+      "action": "dollar_course",
+      "from": "UZS",
+      "to": "USD",
+      "amount": 4000000
     }} 
     
     **Input:** "Dollar kursi qancha."

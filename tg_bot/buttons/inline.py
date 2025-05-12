@@ -18,3 +18,12 @@ def cancel(id, lang):
     txt = get_text(lang,"cancel")
     button = InlineKeyboardButton(text=txt, callback_data=f"cancel_{id}")
     return InlineKeyboardMarkup(inline_keyboard=[[button]])
+
+def phone_number_btn():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📞 Telefon raqamni yuborish", request_contact=True)]
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )

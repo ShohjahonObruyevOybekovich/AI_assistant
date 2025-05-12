@@ -50,6 +50,21 @@ class FinanceHandler:
         else:
             return "⚠️ Tanlangan moliyaviy amal mavjud emas."
 
+    async def list_route(self,data:list):
+        results = []
+
+        for data in data:
+            action = data.get("action")
+            if action == "create_income":
+                results.append(await self.create_income(data))
+            elif action == "create_expense":
+                results.append(await self.create_expense(data))
+            else:
+                results.append("⚠️ Noma'lum amal.")
+
+    async def finance_obj_list(self,data:list):
+        ic(data)
+
     async def create_income(self, data):
         # Example: save to DB
         amount = data.get("amount", 0)
@@ -80,7 +95,7 @@ class FinanceHandler:
             time=time_obj if not data.get("time_empty", False) else datetime.today().time(),
         )
         if finance:
-            return f"✅ {amount} {currency} daromad sifatida saqlandi.\n Sabab: {reason} | Sana: {time}"
+            return f"✅ {amount} {currency} daromad sifatida muvaffaqiyatli saqlandi!\n📌 Sabab: {reason}\n📅 Sana: {time}"
 
     async def create_expense(self, data):
         amount = data.get("amount", 0)
@@ -112,7 +127,7 @@ class FinanceHandler:
 
         if finance:
             formatted_time = f"{date_obj} {time_obj.strftime('%H:%M')}" if time_obj else f"{date_obj}"
-            return f"📉 {amount} {currency} xarajat sifatida saqlandi.\nSabab: {reason} | Sana: {formatted_time}"
+            return f"📉 {amount} {currency} xarajat sifatida saqlandi!\n📌 Sabab: {reason}\n📅 Sana: {formatted_time}"
 
     async def edit_finance(self, data: dict):
         fin_type = data.get("type", "")
@@ -121,9 +136,8 @@ class FinanceHandler:
         changed = data.get("changed", "")
 
         if not all([fin_type, old_value, new_value, changed]):
-            return "❌ Kerakli ma'lumotlar to‘liq emas."
+            return  "❌ Iltimos, barcha ma'lumotlarni ulashing."
 
-        # Get user
         user = CustomUser.objects.filter(chat_id=self.user_id).first()
         if not user:
             return "❌ Foydalanuvchi topilmadi."
@@ -136,21 +150,21 @@ class FinanceHandler:
         ).order_by("-date", "-created_at").first()
 
         if not record:
-            return "❌ Mos yozuv topilmadi."
+            return "❌ Mos keluvchi yozuv topilmadi."
 
         # Change logic
         if changed == "amount":
             record.amount = int(new_value)
             record.save()
-            return f"✏️ Miqdor o‘zgartirildi: {old_value} ➡️ {new_value}"
+            return f"✏️ Miqdor muvaffaqiyatli o‘zgartirildi:\n💰 {old_value} ➡️ {new_value}"
 
         elif changed == "type":
             record.action = "EXPENSE" if fin_type == "INCOME" else "INCOME"
             record.amount = abs(int(old_value))
             record.save()
-            return f"🔄 Turi o‘zgartirildi: {fin_type} ➡️ {record.action}"
+            return f"🔁 Hisobot turi o‘zgartirildi:\n{fin_type} ➡️ {record.action}"
 
-        return "⚠️ Hech narsa o‘zgartirilmadi."
+        return "⚠️ O‘zgartirish amalga oshirilmadi."
 
     async def list_finance(self, data):
         ic(data)
@@ -169,7 +183,7 @@ class FinanceHandler:
                 date_start = datetime.strptime(date_str.strip(), "%d/%m/%Y").date()
                 date_end = date_start
         except ValueError:
-            return "❌ Noto‘g‘ri sana formati. Misol: 10/05/2025 yoki 01/04/2025-10/04/2025"
+            return "❌ Sana formati noto‘g‘ri. Namuna: 10/05/2025 yoki 01/04/2025-10/04/2025"
 
         # --- Parse times ---
         try:
@@ -181,7 +195,7 @@ class FinanceHandler:
                 start_time = dtime.min
                 end_time = dtime.max
         except ValueError:
-            return "❌ Noto‘g‘ri vaqt formati. Misol: 09:00-18:00"
+            return "❌ Vaqt formati noto‘g‘ri. Namuna: 09:00-18:00"
 
         # --- Construct datetime boundaries ---
         start_datetime = datetime.combine(date_start, start_time)
@@ -211,8 +225,8 @@ class FinanceHandler:
             date_str = record.date.strftime("%d/%m/%Y")
             response_lines.append(
                 f"{i}. {record.amount} {record.currency} | {date_str} {time_str}\n"
-                f"Turi: {"Kirim" if record.action == "INCOME" else "Chiqim"}\n"
-                f"Sabab: {record.reason}\n"
+                f"📌 Turi: {'Kirim' if record.action == 'INCOME' else 'Chiqim'}\n"
+                f"📝 Sabab: {record.reason}\n"
             )
 
         return "\n".join(response_lines)
@@ -275,7 +289,8 @@ class FinanceHandler:
             queryset = queryset.filter(action=action_type)
 
         if not queryset.exists():
-            return "⚠️ Ko‘rsatilgan mezonlar bo‘yicha hech qanday ma’lumot topilmadi."
+            return "⚠️ Ko‘rsatilgan mezonlarga mos yozuvlar topilmadi."
+
 
         # Prepare data
         data_list = []
@@ -325,9 +340,10 @@ class FinanceHandler:
         rate_dict = {item["Ccy"]: float(item["Rate"].replace(",", "")) for item in rates}
 
         if from_currency not in rate_dict and from_currency != "UZS":
-            return f"❌ {from_currency} valyutasi topilmadi."
+            return  f"❌ {from_currency} valyutasi bazada mavjud emas."
+
         if to_currency not in rate_dict and to_currency != "UZS":
-            return f"❌ {to_currency} valyutasi topilmadi."
+            return f"❌ {to_currency} valyutasi bazada mavjud emas."
 
 
         if from_currency == "UZS":

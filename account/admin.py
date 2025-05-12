@@ -9,7 +9,7 @@ class CustomUserAdmin(UserAdmin):
     form = CustomUserChangeForm
     add_form = CustomUserCreationForm
 
-    list_display = ("phone", "is_staff", "is_active",)
+    list_display = ("phone","language" ,"is_staff", "is_active",)
     list_filter = ("phone", "is_staff", "is_active",)
 
     fieldsets = (
