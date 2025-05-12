@@ -1,15 +1,13 @@
 import io
 from datetime import datetime
+from datetime import time as dtime
 
 import httpx
 import pandas as pd
 from aiogram.types import BufferedInputFile
-from django.db.models import Sum, ExpressionWrapper, F, DateTimeField, Func, Value, CharField
+from django.db.models import Sum, ExpressionWrapper, DateTimeField, Func, Value, CharField
 from django.db.models.functions import Cast, Concat
 from icecream import ic
-from datetime import time as dtime
-
-from pandas.io.clipboard import paste
 
 from account.models import CustomUser
 from finance.models import FinanceAction
@@ -20,7 +18,23 @@ class FinanceHandler:
     def __init__(self, user_id: int):
         self.user_id = user_id
 
-    async def route(self, data: dict):
+    async def route(self, data):
+        """
+        Accepts:
+            - single dict → processes one action
+            - list of dicts → processes all actions and returns concatenated result
+        """
+        if isinstance(data, list):
+            responses = []
+            for item in data:
+                single_result = await self._route_single(item)
+                if single_result:
+                    responses.append(single_result)
+            return "\n\n".join([r for r in responses if isinstance(r, str)])
+        else:
+            return await self._route_single(data)
+
+    async def _route_single(self, data: dict):
         action = data.get("action")
 
         if action == "create_income":
@@ -49,21 +63,6 @@ class FinanceHandler:
 
         else:
             return "⚠️ Tanlangan moliyaviy amal mavjud emas."
-
-    async def list_route(self,data:list):
-        results = []
-
-        for data in data:
-            action = data.get("action")
-            if action == "create_income":
-                results.append(await self.create_income(data))
-            elif action == "create_expense":
-                results.append(await self.create_expense(data))
-            else:
-                results.append("⚠️ Noma'lum amal.")
-
-    async def finance_obj_list(self,data:list):
-        ic(data)
 
     async def create_income(self, data):
         # Example: save to DB

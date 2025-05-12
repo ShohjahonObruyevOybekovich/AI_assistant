@@ -96,8 +96,10 @@ async def ask_for_voice(msg:Message):
 
 
 # Voice message handler
+
 @dp.message(F.content_type == types.ContentType.VOICE)
 async def handle_voice(message: Message, bot: Bot):
+    # Save voice to file
     file = await bot.get_file(message.voice.file_id)
     file_path = f"voice_{message.from_user.id}.ogg"
     destination_path = file_path.replace(".ogg", ".mp3")
@@ -107,81 +109,76 @@ async def handle_voice(message: Message, bot: Bot):
     with open(file_path, "wb") as f:
         f.write(file_bytes.read())
 
+    # Convert to MP3 using ffmpeg
     os.system(f"ffmpeg -i {file_path} -ar 16000 -ac 1 {destination_path}")
 
     if not os.path.exists(destination_path):
         await message.answer("❌ Failed to convert audio.")
         return
 
+    # Transcribe audio
     result = stt(destination_path)
     text = result.get("result", {}).get("text") if isinstance(result, dict) else result
 
-    lang = CustomUser.objects.filter(chat_id=message.from_user.id).first()
+    lang_user = CustomUser.objects.filter(chat_id=message.from_user.id).first()
 
     await message.reply(
-        text=f"{get_text(lang, "message")} : {text}",
-        reply_markup=cancel(lang=lang,id=message.from_user.id),
+        text=f"{get_text(lang_user, 'message')} : {text}",
+        reply_markup=cancel(lang=lang_user, id=message.from_user.id),
     )
 
-    if text:
-        intent_result = await gpt.prompt_to_json(str(message.from_user.id), text)
-        ic(intent_result)
+    if not text:
+        await message.reply(get_text(lang_user, "unknown_command"))
+        return
 
-        if isinstance(intent_result, list):
+    intent_result = await gpt.prompt_to_json(str(message.from_user.id), text)
+    ic(intent_result)
+
+    finance_actions = [
+        "create_income", "create_expense", "edit_finance", "list_finance",
+        "excel_data", "dollar_course", "user_session", "powered_by",
+    ]
+    debt_actions = [
+        "create_debt", "repay_debt", "update_debt_due", "delete_debt",
+        "list_debt", "report_debt",
+    ]
+
+    responses = []
+
+    async def process_intent(entry: dict):
+        action = entry.get("action")
+        if not action:
+            return get_text(lang_user, "unknown_command")
+
+        if action in finance_actions:
             finance = FinanceHandler(user_id=message.from_user.id)
-            result = await finance.list_route(intent_result)
-            await message.answer(result)
-            return
-
-        action_type = intent_result.get("action", "")
-        ic(action_type)
-
-        finance_actions = [
-            "create_income",
-            "create_expense",
-            "edit_finance",
-            "list_finance",
-            "excel_data",
-            "dollar_course",
-            "user_session",
-            "powered_by",
-        ]
-
-        debt_actions = [
-            "create_debt",
-            "repay_debt",
-            "update_debt_due",
-            "delete_debt",
-            "list_debt",
-            "report_debt",
-        ]
-
-        if not action_type:
-            await message.reply(get_text(lang, "unknown_command"))
-
-
-        elif action_type in finance_actions:
-            finance = FinanceHandler(user_id=message.from_user.id)
-            result = await finance.route(intent_result)
-
-            if isinstance(result, BufferedInputFile):
-                await message.answer_document(result, caption="📊 Hisobot tayyor!")
-            else:
-                await message.answer(result)
-
-
-        elif action_type in debt_actions:
+            result = await finance.route(entry)
+        elif action in debt_actions:
             debt = Debt(user_id=message.from_user.id)
-            result = await debt.route(intent_result)
-
-            if isinstance(result, BufferedInputFile):
-                await message.answer_document(result, caption="📊 Hisobot tayyor!")
-            else:
-                await message.answer(result)
-
-
+            result = await debt.route(entry)
         else:
-            await message.reply(get_text(lang, "unsupported_action"))
+            return get_text(lang_user, "unsupported_action")
+
+        if isinstance(result, BufferedInputFile):
+            await message.answer_document(result, caption="📊 Hisobot tayyor!")
+            return None
+        return result
+
+    # If multiple actions (list of objects)
+    if isinstance(intent_result, list):
+        for entry in intent_result:
+            result = await process_intent(entry)
+            if result:
+                responses.append(result)
+    else:
+        result = await process_intent(intent_result)
+        if result:
+            responses.append(result)
+
+    if responses:
+        for chunk in responses:
+            await message.answer(chunk)
+
     # Cleanup
     os.remove(file_path)
     os.remove(destination_path)
