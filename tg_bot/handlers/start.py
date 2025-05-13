@@ -10,6 +10,7 @@ from dispatcher import dp, TOKEN
 from tg_bot.buttons.inline import choose_language, cancel, phone_number_btn
 from tg_bot.handlers.route import route_intent
 from tg_bot.state.main import User
+from tg_bot.test import format_phone_number
 from tg_bot.utils.ai import GptFunctions
 from tg_bot.utils.stt import stt
 from tg_bot.utils.translator import get_text, load_locales
@@ -69,6 +70,8 @@ async def user_lang_handler(call: CallbackQuery, state: FSMContext):
 async def handle_phone(message: Message, state: FSMContext):
     if message.contact:
         phone = message.contact.phone_number
+        phone = format_phone_number(phone)
+        ic(phone)
         existing_user = CustomUser.objects.filter(phone=phone).exclude(chat_id=message.from_user.id).first()
 
         if existing_user:
