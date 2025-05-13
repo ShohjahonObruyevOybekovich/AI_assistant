@@ -11,6 +11,7 @@ from icecream import ic
 
 from account.models import CustomUser
 from finance.models import FinanceAction
+from tg_bot.utils.exchange import get_exchange_rates
 from tg_bot.utils.translator import get_text
 
 
@@ -91,7 +92,7 @@ class FinanceHandler:
             reason=reason,
             action="INCOME",
             date=date_obj or datetime.today().date(),
-            time=time_obj if not data.get("time_empty", False) else datetime.today().time(),
+            time=time_obj if not data.get("time_empty", False) else datetime.now().time(),
         )
         if finance:
             return f"✅ {amount} {currency} daromad sifatida muvaffaqiyatli saqlandi!\n📌 Sabab: {reason}\n📅 Sana: {time}"
@@ -200,44 +201,70 @@ class FinanceHandler:
         start_datetime = datetime.combine(date_start, start_time)
         end_datetime = datetime.combine(date_end, end_time)
 
-        # --- Filter ---
+        # --- Filter queryset ---
         queryset = FinanceAction.objects.filter(
             user__chat_id=self.user_id,
             date__range=(date_start, date_end),
         ).filter(
-            # Combine both for precise filtering
             time__range=(start_datetime, end_datetime)
         )
 
         if action_type != "ALL":
             queryset = queryset.filter(action=action_type)
 
-        ic(queryset)
-
         if not queryset.exists():
             return "⚠️ Ko‘rsatilgan mezonlar bo‘yicha hech qanday ma’lumot topilmadi."
 
-        # --- Response formatting ---
+        # --- Fetch exchange rates ---
+        exchange_rates, error = await get_exchange_rates()
+        if error:
+            return f"❌ Valyuta kurslarini olishda xatolik: {error}"
+
+        exchange_rates["UZS"] = 1  # fallback
+
+        # --- Format results ---
         response_lines = ["📊 Moliyaviy yozuvlaringiz:\n"]
+        total_by_currency = {}
+
         for i, record in enumerate(queryset.order_by("date", "time"), start=1):
             time_str = record.time.strftime("%H:%M") if record.time else "--:--"
             date_str = record.date.strftime("%d/%m/%Y")
+            sign = 1 if record.action == "INCOME" else -1
+
+            # Track totals
+            total_by_currency.setdefault(record.currency, 0)
+            total_by_currency[record.currency] += sign * float(record.amount)
+
             response_lines.append(
                 f"{i}. {record.amount} {record.currency} | {date_str} {time_str}\n"
                 f"📌 Turi: {'Kirim' if record.action == 'INCOME' else 'Chiqim'}\n"
                 f"📝 Sabab: {record.reason}\n"
             )
 
-        return "\n".join(response_lines)
+        # --- Summary conversion ---
+        total_uzs = 0
+        summary_lines = ["\n💰 Jami hisob:\n"]
+        for currency, amount in total_by_currency.items():
+            amount_rounded = round(amount, 2)
+            status = "🟢 Foyda" if amount_rounded > 0 else "🔴 Zarar" if amount_rounded < 0 else "⚪️ Neytral"
+
+            summary_lines.append(f"• {currency}: {amount_rounded}   ({status})")
+
+            rate = exchange_rates.get(currency.upper())
+            if rate:
+                total_uzs += amount * rate
+
+        summary_lines.append(f"\n📌 Umumiy qiymat: {round(total_uzs):,} so‘m")
+
+        return "\n".join(response_lines + summary_lines)
 
     async def excel_data(self, data):
-        ic("-----------------")
 
         date_str = data.get("date", "")
         time_range = data.get("time", "").strip()
         action_type = data.get("type", "").upper()
 
-        # Parse date or date range
+        # Parse date
         try:
             if "-" in date_str:
                 start_str, end_str = date_str.split("-")
@@ -249,9 +276,8 @@ class FinanceHandler:
         except ValueError:
             return "❌ Noto‘g‘ri sana formati. Misol: 10/05/2025 yoki 01/04/2025-10/04/2025"
 
-        # Parse time range
         try:
-            if time_range and "-" in time_range:
+            if "-" in time_range:
                 start_time_str, end_time_str = time_range.split("-")
                 start_time = datetime.strptime(start_time_str.strip(), "%H:%M").time()
                 end_time = datetime.strptime(end_time_str.strip(), "%H:%M").time()
@@ -261,10 +287,6 @@ class FinanceHandler:
         except ValueError:
             return "❌ Noto‘g‘ri vaqt formati. Misol: 09:00-18:00"
 
-        start_dt = datetime.combine(date_start, start_time)
-        end_dt = datetime.combine(date_end, end_time)
-
-        # Annotate datetime and filter
         queryset = FinanceAction.objects.filter(
             user__chat_id=self.user_id,
             date__range=(date_start, date_end)
@@ -290,35 +312,72 @@ class FinanceHandler:
         if not queryset.exists():
             return "⚠️ Ko‘rsatilgan mezonlarga mos yozuvlar topilmadi."
 
+        exchange_rates, error = await get_exchange_rates()
+        if error:
+            return f"❌ Valyuta kurslarini olishda xatolik: {error}"
+        exchange_rates["UZS"] = 1
 
-        # Prepare data
         data_list = []
+        totals_by_currency = {}
+        total_uzs = 0
+
         for record in queryset:
+            amount = float(record.amount)
+            sign = 1 if record.action == "INCOME" else -1
+            signed_amount = sign * amount
+            currency = record.currency.upper()
+            totals_by_currency.setdefault(currency, 0)
+            totals_by_currency[currency] += signed_amount
+            total_uzs += signed_amount * exchange_rates.get(currency, 1)
+
             data_list.append({
                 "Sana": record.date.strftime("%d/%m/%Y"),
                 "Vaqt": record.time.strftime("%H:%M") if record.time else "--:--",
                 "Turi": "Kirim" if record.action == "INCOME" else "Chiqim",
-                "Miqdor": record.amount,
-                "Valyuta": record.currency,
+                "Miqdor": signed_amount,
+                "Valyuta": currency,
                 "Sabab": record.reason,
             })
 
         df = pd.DataFrame(data_list)
-
-        # Add total row
-        total_sum = queryset.aggregate(total=Sum("amount"))["total"]
-        df.loc[len(df.index)] = ["", "", "Jami", total_sum, "", ""]
+        df.loc[len(df)] = ["", "", "💱 Valyuta Jami", "", "", ""]
+        for currency, val in totals_by_currency.items():
+            df.loc[len(df)] = ["", "", "", round(val, 2), currency, ""]
+        df.loc[len(df)] = ["", "", "", "", "", ""]
+        df.loc[len(df)] = ["", "", "📌 Umumiy qiymat", f"{round(total_uzs):,}", "UZS", ""]
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df.to_excel(writer, index=False, sheet_name="📊 Moliyaviy xisobot")
+            df.to_excel(writer, index=False, sheet_name="Moliyaviy Xisobot")
+            workbook = writer.book
+            worksheet = writer.sheets["Moliyaviy Xisobot"]
+
+            header_fmt = workbook.add_format({"bold": True, "bg_color": "#D9E1F2", "border": 1})
+            cell_fmt = workbook.add_format({"border": 1})
+            num_fmt = workbook.add_format({"border": 1, "num_format": "#,##0", "align": "right"})
+            highlight_fmt = workbook.add_format(
+                {"bold": True, "bg_color": "#FCE4D6", "border": 1, "num_format": "#,##0"})
+
+            n_rows, n_cols = df.shape
+            for col_num, col in enumerate(df.columns):
+                worksheet.write(0, col_num, col, header_fmt)
+                max_width = max(df[col].astype(str).map(len).max(), len(col)) + 2
+                worksheet.set_column(col_num, col_num, max_width)
+
+            for row in range(1, n_rows + 1):
+                for col in range(n_cols):
+                    value = df.iloc[row - 1, col]
+                    col_name = df.columns[col]
+                    fmt = num_fmt if col_name == "Miqdor" and isinstance(value, (int, float)) else cell_fmt
+                    worksheet.write(row, col, value, fmt)
+
+            for idx in range(n_rows):
+                row_value = str(df.iloc[idx].get("Turi", ""))
+                if "Jami" in row_value or "Umumiy" in row_value:
+                    worksheet.set_row(idx + 1, None, highlight_fmt)
 
         output.seek(0)
-
-        return BufferedInputFile(
-            output.read(),
-            filename=f"FinanceReport {date_start.strftime('%d-%m-%Y')} to {date_end.strftime('%d-%m-%Y')}.xlsx"
-        )
+        return BufferedInputFile(output.read(), filename=f"FinanceReport {date_start} to {date_end}.xlsx")
 
     async def dollar_course(self, data):
         from_currency = data.get("from", "USD").upper()

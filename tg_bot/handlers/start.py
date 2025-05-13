@@ -2,15 +2,13 @@ import os
 
 from aiogram import Bot, F, types
 from aiogram.fsm.context import FSMContext
-from aiogram.handlers import CallbackQueryHandler
 from aiogram.types import Message, BufferedInputFile, CallbackQuery
 from icecream import ic
 
 from account.models import CustomUser
-from debt.models import Debt
 from dispatcher import dp, TOKEN
 from tg_bot.buttons.inline import choose_language, cancel, phone_number_btn
-from tg_bot.handlers.finance import FinanceHandler
+from tg_bot.handlers.route import route_intent
 from tg_bot.state.main import User
 from tg_bot.utils.ai import GptFunctions
 from tg_bot.utils.stt import stt
@@ -134,51 +132,28 @@ async def handle_voice(message: Message, bot: Bot):
     intent_result = await gpt.prompt_to_json(str(message.from_user.id), text)
     ic(intent_result)
 
-    finance_actions = [
-        "create_income", "create_expense", "edit_finance", "list_finance",
-        "excel_data", "dollar_course", "user_session", "powered_by",
-    ]
-    debt_actions = [
-        "create_debt", "repay_debt", "update_debt_due", "delete_debt",
-        "list_debt", "report_debt",
-    ]
-
     responses = []
 
-    async def process_intent(entry: dict):
-        action = entry.get("action")
-        if not action:
-            return get_text(lang_user, "unknown_command")
-
-        if action in finance_actions:
-            finance = FinanceHandler(user_id=message.from_user.id)
-            result = await finance.route(entry)
-        elif action in debt_actions:
-            debt = Debt(user_id=message.from_user.id)
-            result = await debt.route(entry)
-        else:
-            return get_text(lang_user, "unsupported_action")
-
-        if isinstance(result, BufferedInputFile):
-            await message.answer_document(result, caption="📊 Hisobot tayyor!")
-            return None
-        return result
-
-    # If multiple actions (list of objects)
     if isinstance(intent_result, list):
         for entry in intent_result:
-            result = await process_intent(entry)
-            if result:
+            result = await route_intent(message.from_user.id, entry)
+            if isinstance(result, BufferedInputFile):
+                await message.answer_document(result, caption="📊 Hisobot tayyor!")
+            elif result:
                 responses.append(result)
     else:
-        result = await process_intent(intent_result)
-        if result:
+        result = await route_intent(message.from_user.id, intent_result)
+        if isinstance(result, BufferedInputFile):
+            await message.answer_document(result, caption="📊 Hisobot tayyor!")
+        elif result:
             responses.append(result)
 
-    if responses:
-        for chunk in responses:
-            await message.answer(chunk)
+    for chunk in responses:
+        await message.answer(chunk)
 
     # Cleanup
-    os.remove(file_path)
-    os.remove(destination_path)
+    for path in [file_path, destination_path]:
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass

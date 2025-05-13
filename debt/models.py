@@ -5,14 +5,14 @@ from account.models import CustomUser
 
 class Debt(BaseModel):
     user : "CustomUser" = models.ForeignKey("account.CustomUser", on_delete=models.SET_NULL, null=True,blank=True,related_name="debtor_user")
-    receiver : "CustomUser" = models.ForeignKey("account.CustomUser", on_delete=models.SET_NULL, null=True,blank=True,related_name="receiver_user")
+    receiver : str = models.CharField(max_length=120,blank=True,null=True)
     amount : int = models.IntegerField(default=0)
     type : str = models.CharField(choices=[
         ("GIVE","GIVE"),
         ("TAKE","TAKE"),
     ],max_length=11,null=True,blank=True)
     currency : str = models.CharField(max_length=10, default="SUM")
-    due_date : str = models.DateTimeField(max_length=120)
+    due_date : str = models.DateTimeField(max_length=120,null=True,blank=True)
     status = models.CharField(max_length=20, choices=[
         ("UNPAID", "Unpaid"),
         ("PARTIAL", "Partial"),
