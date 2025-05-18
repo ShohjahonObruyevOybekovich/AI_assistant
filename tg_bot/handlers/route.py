@@ -1,7 +1,7 @@
 # route.py
 
 from .finance import FinanceHandler
-from .debt import Debt
+from .debt import Debt, Debt_Finance
 from aiogram.types import BufferedInputFile
 from account.models import CustomUser
 from tg_bot.utils.translator import get_text
@@ -12,7 +12,7 @@ finance_actions = [
 ]
 
 debt_actions = [
-    "create_debt", "repay_debt", "update_debt_due", "delete_debt",
+    "create_debt", "repay_debt", "update_debt", "delete_debt",
     "list_debt", "report_debt",
 ]
 
@@ -30,6 +30,6 @@ async def route_intent(user_id: int, intent: dict) -> str | BufferedInputFile | 
 
     # Debt actions routing
     if action in debt_actions:
-        return await Debt(user_id=user_id).route(intent)
+        return await Debt_Finance(user_id=user_id).route(intent)
 
     return get_text(user, "unsupported_action")

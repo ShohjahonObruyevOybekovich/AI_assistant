@@ -5,8 +5,13 @@
 
     # Steps
 
-    1. **Identify the Action**: Determine the primary action from the prompt, translating from Uzbek if necessary. use check_free_time for checking for free time and check_free_date for checking time for date
-    2. **Our existing actions**: 'create_meeting*', 'list_meetings*', 'send_document*', 'remind_something', 'check_free_time','check_free_date','create_income', 'create_expense', 'edit_finance', "dollar_course", 'list_finance', 'excel_data', 'currency_price', 'powered_by' . Prioritize actions with * at the end
+    1. **Identify the Action**: Determine the primary action from the prompt, translating from Uzbek if necessary. use check_free_time for checking
+     for free time and check_free_date for checking time for date
+    2. **Our existing actions**:
+    'create_meeting*', 'list_meetings*', 'send_document*', 'remind_something', 'check_free_time','check_free_date',
+    'create_income', 'create_expense', 'edit_finance', "dollar_course", 'list_finance', 'excel_data', 'currency_price', 'powered_by',
+    "create_debt", "repay_debt", "update_debt", "delete_debt","list_debt", "report_debt"
+    Prioritize actions with * at the end
     3. **Extract Details**: Parse the Uzbek voice command to extract details such as name, time, and other relevant information.
     4. **Format Date and Time**: Convert and format the date and time from the command to the "dd/mm/yyyy hh:mm" format.
     5. **Construct JSON**: Assemble the extracted information into the JSON command with the following structure.
@@ -18,12 +23,14 @@
     The output should be a JSON object with the following fields:
     - **action**: The primary action in lowercase with underscores.
     - **name**: The name of the person involved.
-    - **time**: The date and time of meeting, document, reminder in "dd/mm/yyyy hh:mm" format or empty.If in contex there is no time exactly
+    - **time**: The date and time of meeting, document, reminder in "dd/mm/yyyy hh:mm" format or empty.If in contex no exact time but there is date, return time empty.If in contex there is no time exactly
     mentioned just return time_empty field.Example "08/05/2025 ", time_empty = True
     - **phone_number**: Include the phone number if provided, or an empty string otherwise.
     - **amount**: Income or Expanse amount or 0
     - **reason**: Reason of Income, Expanse, Meeting, place of meeting or empty string
     - **currency**: Currency of finance (USD | UZS)
+    - **target_person**: The person who joined to the action maybe as a performer or receiver
+    - **due_date**: The date of debt that should GIVE or TAKE, it should come empty or with datetime formate, if there is no time in contex just get 09:00 as a time.
     - **remind_text**: Text for reminding something. You have to add some meaningful text without grammar mistakes. in uzbek language
     - **document_id**: list of Id of document which provided to you.
     - **from**: The exchange money that currently have an amount.
@@ -37,7 +44,69 @@
     - The keys of dollar_course is USD, EUR, RUB, GBP, JPY, CNY, KZT, SUM, TRY
     - If the said about one type of money always return to the second "to" key UZB.
     - If the sentence contains more than one gap (blanks), return each gap’s answer separately in order of appearance.
+    - If the action is about the debt action even giving money or borrowing return the type GIVE or TAKE.If the actions are more than one give it in the list seperated by , and turn by turn
     # Examples
+
+    -- Debt example --
+
+    **Input:** "Dustim Jafarga bergan turt yuz dollar qarzni besh yuz ming sumga va kecha amakimdan un beshu ellikda moshina uchun olgan besh yuz dollar ni muddatini ikki oyga uzgartir."
+
+    **Output:**
+    [
+    {{
+        "action": "update_debt",
+        "amount": "500",
+        "type": "GIVE",
+        "currency": "USD",
+        "reason": "Dustim Jafarga turt yuz dollar qarz berdim",
+        "target_person": "Jafar",
+        "due_date": "",
+        "time": "10/05/2025 "
+        "from_amount": "400",
+        "to_amount": "500",
+        "from_currency": "USD",
+        "to_currency": "UZB"
+    }},
+    {{
+        "action": "update_debt",
+        "amount": "500",
+        "type": "TAKE",
+        "currency": "USD",
+        "reason": " moshina uchun amakimdan",
+        "target_person": "amakim",
+        "due_date": "10/06/2025 17:50"
+        "time": "10/05/2025 17:50",
+        "from_due_date": "10/06/2025 17:50",
+        "to_due_date": "10/07/2025 17:50"
+    }}
+    ]
+
+    **Input:** "Dustim Jafarga turt yuz dollar qarz berdim va kecha amakimdan un beshu ellikda moshina uchun besh yuz dollar bir oyga oldim."
+
+    **Output:**
+    [
+    {{
+        "action": "create_debt",
+        "amount": "500",
+        "type": "GIVE",
+        "currency": "USD",
+        "reason": "Dustim Jafarga turt yuz dollar qarz berdim",
+        "target_person": "Jafar",
+        "due_date": "",
+        "time": "10/05/2025 "
+    }},
+    {{
+        "action": "create_debt",
+        "amount": "500",
+        "type": "TAKE",
+        "currency": "USD",
+        "reason": " moshina uchun amakimdan",
+        "target_person": "amakim",
+        "due_date": "10/06/2025 17:50"
+        "time": "10/05/2025 17:50"
+    }}
+    ]
+
 
     **Input:** "Bugun yuz ming velosipedga, besh yuz dollar office ijarasiga va yigirma besh ming ovqatlanishga ishlatdim, keyin kechga ikki yuz ming sum avans oldim."
 
