@@ -95,7 +95,9 @@ class FinanceHandler:
             time=time_obj if not data.get("time_empty", False) else datetime.now().time(),
         )
         if finance:
-            return f"✅ {amount} {currency} daromad sifatida muvaffaqiyatli saqlandi!\n📌 Sabab: {reason}\n📅 Sana: {time}"
+            return (f"✅ {amount} {currency} daromad sifatida muvaffaqiyatli saqlandi!\n"
+                    f"📌 Sabab: {reason}\n"
+                    f"📅 Sana: {time}")
 
     async def create_expense(self, data):
         amount = data.get("amount", 0)

@@ -1,10 +1,11 @@
 import datetime
+from datetime import datetime
 
+from django.core.exceptions import ObjectDoesNotExist
 from icecream import ic
 
 from account.models import CustomUser
 from debt.models import Debt
-from tg_bot.util import parse_datetime_or_date, parse_date
 
 
 class Debt_Finance:
@@ -41,30 +42,32 @@ class Debt_Finance:
         currency = data.get("currency", "SUM")
         reason = data.get("reason")
         target_person_name = data.get("target_person")
-        due_date_input = data.get("due_date")  # Expecting DD/MM/YYYY or DD/MM/YYYY HH:MM
-        time_str = data.get("time")  # Expecting DD/MM/YYYY or DD/MM/YYYY HH:MM
-
-        # Basic field validation
-        if not all([amount, debt_type, reason, target_person_name, time_str]):
-            return "Missing one or more required fields: amount, type, reason, target_person, time."
+        due_date_input = data.get("due_date")
+        time_str = data.get("time")
 
         try:
             amount = int(amount)
         except ValueError:
             return "Amount must be an integer."
 
-        # Parse time_str into date and time
-        dt = parse_datetime_or_date(time_str)
-        if not dt:
-            return "Invalid date format for time. Use DD/MM/YYYY or DD/MM/YYYY HH:MM."
+        date = None
+        time = None
 
-        date = dt.date()
-        time = dt.time()
+        if time_str:
+            day, time = time_str.split(" ")
+            if time == "":
+                time = datetime.now()
+            else:
+                time = datetime.datetime.strptime(time, "%H:%M")
 
         due_date = None
         if due_date_input:
-            due_date = parse_date(due_date_input)
-
+            if due_date_input.split(" ").__len__() != 2:
+                due_date = due_date_input + datetime.now().time()
+                ic(due_date)
+            else:
+                due_date = datetime.strptime(due_date_input, "%d/%m/%Y %H:%M")
+                ic(due_date)
 
         user = CustomUser.objects.filter(chat_id=self.user_id).first()
 
@@ -80,25 +83,33 @@ class Debt_Finance:
             time=time,
         )
 
-        return (
-            f"✅ Qarz muvaffaqiyatli saqlandi!\n"
+        text = (
+            f"✅ Qarz muvaffaqiyatli saqlandi!\n\n"
+            f"⌨️ Turi: {"Qarz berish" if debt_type == "GIVE" else "Qarz olish"}\n"
             f"👤 Shaxs: {target_person_name}\n"
             f"💰 Miqdori: {amount} {currency}\n"
-            f"📅 Qaytarish muddati: {due_date.strftime('%d/%m/%Y %H:%M') if due_date else '—'}"
         )
+        if debt.due_date:
+            text += f"📅 Qaytarish muddati: {due_date.strftime('%d/%m/%Y %H:%M') if due_date else '—'}"
+
+        if debt:
+            return text
 
     async def repay_debt(self, data: dict):
         pass
 
     async def update_debt(self, intent: dict):
-        debt_id = intent.get("id")
-        if not debt_id:
-            return {"error": "❗️Debt ID is required to update."}
-
         try:
-            debt = Debt.objects.get(id=debt_id)
-        except Debt.DoesNotExist:
-            return {"error": f"❌ Debt with ID {debt_id} not found."}
+            debt = Debt.objects.get(
+                user__chat_id=self.user_id,
+                target_person__icontains=intent.get("target_person"),
+                amount=intent.get("amount"),
+                type=intent.get("type"),
+                currency=intent.get("currency")
+            )
+        except ObjectDoesNotExist:
+            # Handle if the debt entry does not exist
+            return "❌ Qarz topilmadi. Iltimos, ma'lumotlarni tekshiring."
 
         # Optional updates
         if "amount" in intent:
@@ -113,16 +124,12 @@ class Debt_Finance:
             debt.target_person = intent["target_person"]
         if "due_date" in intent:
             try:
-                debt.due_date = datetime.strptime(intent["due_date"], "%d/%m/%Y %H:%M")
+                debt.due_date = datetime.strptime(intent["due_date"], "%d-%m-%Y")
             except ValueError:
-                return {"error": "⚠️ Invalid due_date format. Use DD/MM/YYYY or DD/MM/YYYY HH:MM."}
+                return "❌ Noto'g'ri sana formati. Iltimos, DD-MM-YYYY formatda kiriting."
 
         debt.save()
-
-        return {
-            "success": True,
-            "message": f"✅ Qarz ma'lumotlari yangilandi. ID: {debt.id}"
-        }
+        return "✅ Qarz muvaffaqiyatli yangilandi!"
 
     async def delete_debt(self, data: dict):
         pass
