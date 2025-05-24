@@ -6,6 +6,7 @@ from icecream import ic
 
 from account.models import CustomUser
 from debt.models import Debt
+from tg_bot.utils.exchange import get_exchange_rates
 
 
 class Debt_Finance:
@@ -142,30 +143,94 @@ class Debt_Finance:
         }
         """
         date_str = data.get("date", "")
-        user_id = data.get("user_id")
+        action_type = data.get("type").upper()
+        time_range = data.get("time","").strip()
 
+
+        # --- Parse dates ---
         try:
             if "-" in date_str:
-                start_date, end_date = [datetime.strptime(d.strip(), "%Y-%m-%d") for d in date_str.split("-")]
+                start_str, end_str = date_str.split("-")
+                date_start = datetime.strptime(start_str.strip(), "%d/%m/%Y").date()
+                date_end = datetime.strptime(end_str.strip(), "%d/%m/%Y").date()
             else:
-                start_date = end_date = datetime.strptime(date_str.strip(), "%Y-%m-%d")
-        except Exception as e:
-            return {"error": f"Sana formati noto‘g‘ri: {e}"}
+                date_start = datetime.strptime(date_str.strip(), "%d/%m/%Y").date()
+                date_end = date_start
+        except ValueError:
+            return "❌ Sana formati noto‘g‘ri. Namuna: 10/05/2025 yoki 01/04/2025-10/04/2025"
 
-        query = Debt.objects.filter(created_at__range=(start_date, end_date))
-        if user_id:
-            query = query.filter(user_id=user_id)
+        # --- Parse times ---
+        try:
+            if time_range and "-" in time_range:
+                start_time_str, end_time_str = time_range.split("-")
+                start_time = datetime.strptime(start_time_str.strip(), "%H:%M").time()
+                end_time = datetime.strptime(end_time_str.strip(), "%H:%M").time()
+            else:
+                start_time = datetime.time.min
+                end_time = datetime.time.max
+        except ValueError:
+            return "❌ Vaqt formati noto‘g‘ri. Namuna: 09:00-18:00"
 
-        result = []
-        for debt in query.select_related("user"):
-            result.append({
-                "user": f"{debt.user.first_name} {debt.user.last_name}",
-                "amount": float(debt.amount),
-                "note": debt.reason,
-                "date": debt.created_at.strftime("%Y-%m-%d"),
-            })
+        # --- Construct datetime boundaries ---
+        start_datetime = datetime.combine(date_start, start_time)
+        end_datetime = datetime.combine(date_end, end_time)
 
-        return {"debts": result}
+        # --- Filter queryset ---
+        queryset = Debt.objects.filter(
+            user__chat_id=self.user_id,
+            date__range=(date_start, date_end),
+        ).filter(
+            time__range=(start_datetime, end_datetime)
+        )
+
+        if action_type != "ALL":
+            queryset = queryset.filter(action=action_type)
+
+        if not queryset.exists():
+            return "⚠️ Ko‘rsatilgan mezonlar bo‘yicha hech qanday ma’lumot topilmadi."
+
+        # --- Fetch exchange rates ---
+        exchange_rates, error = await get_exchange_rates()
+        if error:
+            return f"❌ Valyuta kurslarini olishda xatolik: {error}"
+
+        exchange_rates["UZS"] = 1  # fallback
+
+        # --- Format results ---
+        response_lines = ["📊 Qarizdorlik yozuvlaringiz:\n"]
+        total_by_currency = {}
+
+        for i, record in enumerate(queryset.order_by("date", "time"), start=1):
+            time_str = record.time.strftime("%H:%M") if record.time else "--:--"
+            date_str = record.date.strftime("%d/%m/%Y")
+            sign = 1 if record.action == "INCOME" else -1
+
+            # Track totals
+            total_by_currency.setdefault(record.currency, 0)
+            total_by_currency[record.currency] += sign * float(record.amount)
+
+            response_lines.append(
+                f"{i}. {record.amount} {record.currency} | {date_str} {time_str}\n"
+                f"📌 Turi: {'Qarz olish' if record.action == 'TAKE' else 'Qarz berish'}\n"
+                f"📝 Sabab: {record.reason}\n"
+            )
+
+        # --- Summary conversion ---
+        total_uzs = 0
+        summary_lines = ["\n💰 Jami hisob:\n"]
+        for currency, amount in total_by_currency.items():
+            amount_rounded = round(amount, 2)
+            status = "🟢 Olingan qarizlar" if amount_rounded > 0 else "🔴 Berilgan qarizlar" if amount_rounded < 0 else "⚪️ Neytral"
+
+            summary_lines.append(f"• {currency}: {amount_rounded}   ({status})")
+
+            rate = exchange_rates.get(currency.upper())
+            if rate:
+                total_uzs += amount * rate
+
+        summary_lines.append(f"\n📌 Umumiy qiymat: {round(total_uzs):,} so‘m")
+
+        return "\n".join(response_lines + summary_lines)
 
     async def report_debt(self, data: dict):
         pass
