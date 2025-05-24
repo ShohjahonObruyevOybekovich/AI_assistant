@@ -10,6 +10,7 @@ from tg_bot.utils.exchange import get_exchange_rates
 
 
 class Debt_Finance:
+
     def __init__(self, user_id: int):
         self.user_id: int = user_id
 
