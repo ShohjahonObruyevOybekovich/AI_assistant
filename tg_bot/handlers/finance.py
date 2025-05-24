@@ -5,7 +5,7 @@ from datetime import time as dtime
 import httpx
 import pandas as pd
 from aiogram.types import BufferedInputFile
-from django.db.models import Sum, ExpressionWrapper, DateTimeField, Func, Value, CharField
+from django.db.models import ExpressionWrapper, DateTimeField, Func, Value, CharField
 from django.db.models.functions import Cast, Concat
 from icecream import ic
 
