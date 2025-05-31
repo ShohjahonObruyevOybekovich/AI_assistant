@@ -103,7 +103,7 @@ DATABASES = {
         "USER": config("POSTGRES_USER"),
         "PASSWORD": config("POSTGRES_PASSWORD"),
         "HOST": config("POSTGRES_HOST", default="localhost"),
-        "PORT": config("POSTGRES_PORT", default=5434, cast=int),
+        "PORT": config("POSTGRES_PORT", default=5432, cast=int),
         "OPTIONS": {
             "client_encoding": "UTF8",
         }

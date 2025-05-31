@@ -71,6 +71,19 @@
         "time": "09:00-09:00"
     }}
 
+    **Input:** "Dilshoddan olgan yuz ming sum olgan qarzimni ellik ming sumini qaytardim"
+
+    **Output:**
+    [
+    {{
+        'action': "repay_debt",
+        'amount': '500000',
+        'currency': 'SUM',
+        'target_person': 'Dilshod',
+        'debt': '50000'
+    }}
+    ]
+
     **Input:** "Dustim Jafarga bergan turt yuz dollar qarzni besh yuz ming sumga va kecha amakimdan un beshu ellikda moshina uchun olgan besh yuz dollar ni muddatini ikki oyga uzgartir."
 
     **Output:**

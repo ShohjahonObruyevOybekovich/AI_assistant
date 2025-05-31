@@ -2,6 +2,7 @@ import datetime
 from datetime import datetime
 
 from django.core.exceptions import ObjectDoesNotExist
+from django.db.models import Sum
 from icecream import ic
 
 from account.models import CustomUser
@@ -98,7 +99,60 @@ class Debt_Finance:
             return text
 
     async def repay_debt(self, data: dict):
-        pass
+        amount = data.get('amount')
+        debt_type = data.get("type")  # "GIVE"
+        currency = data.get("currency", "SUM")
+        target_person_name = data.get('target_person')
+        due_date_input = data.get("due_date")
+        time_str = data.get("time")
+
+        try:
+            amount = int(amount)
+        except ValueError:
+            return "Amount must be an integer."
+
+        date = None
+        time = None
+
+        if time_str:
+            day, time = time_str.split(" ")
+            if time == "":
+                time = datetime.now()
+            else:
+                time = datetime.datetime.strptime(time, "%H:%M")
+
+        due_date = None
+        if due_date_input:
+            if due_date_input.split(" ").__len__() != 2:
+                due_date = due_date_input + datetime.now().time()
+                ic(due_date)
+            else:
+                due_date = datetime.strptime(due_date_input, "%d/%m/%Y %H:%M")
+                ic(due_date)
+
+        total_debt = Debt.objects.filter(target_person=target_person_name, type="TAKE").aggregate(Sum('amount'))[
+            'amount__sum']
+
+        print(total_debt)
+
+        if total_debt:
+            debt = total_debt - amount
+            if debt > 0:
+                update_field = Debt.objects.filter(
+                    user__chat_id=self.user_id,
+                    target_person_icontains=target_person_name,
+                    amount=total_debt,
+                    currency=currency,
+                ).first()
+                if update_field:
+                    update_field.amount = debt
+                    update_field.save()
+                return f"Umumiy qolgan qarzingiz - {debt}"
+            else:
+                return f"{target_person_name}dan olingan qarzingiz qolmadi!!!"
+
+        else:
+            return f"Qarz topilmadi"
 
     async def update_debt(self, intent: dict):
         try:
@@ -145,8 +199,7 @@ class Debt_Finance:
         """
         date_str = data.get("date", "")
         action_type = data.get("type").upper()
-        time_range = data.get("time","").strip()
-
+        time_range = data.get("time", "").strip()
 
         # --- Parse dates ---
         try:
