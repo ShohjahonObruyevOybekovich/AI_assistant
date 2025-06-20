@@ -5,7 +5,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from icecream import ic
 
 from account.models import CustomUser
-from debt.models import Debt
+from debt.models import Debt, Payed
 from tg_bot.utils.exchange import get_exchange_rates
 
 
@@ -98,7 +98,49 @@ class Debt_Finance:
             return text
 
     async def repay_debt(self, data: dict):
-        pass
+        print(data)
+
+        amount = data.get("amount")
+        repay_amount = data.get("repay_amount")
+        currency = data.get("currency")
+        reason = data.get("reason")
+        repay_type = data.get("repay_type")
+        target_person_name = data.get("target_person")
+        date_of_debt = data.get("date")
+        time_str = data.get("time")
+        repay_currency = data.get("repay_currency")
+
+        user = CustomUser.objects.filter(chat_id=self.user_id).first()
+
+        filter = {}
+        if date_of_debt:
+            filter["due_date"] = date_of_debt
+        if time_str:
+            filter["time"] = time_str
+
+        debt = Debt.objects.filter(
+            user=user,
+            amount=amount,
+            **filter
+        ).first()
+
+
+        if debt:
+            debt_pay = Payed.objects.create(
+                user=user,
+                amount=repay_amount,
+                currency=repay_currency,
+                debt=debt,
+                target_person=target_person_name,
+                type=repay_type,
+                date=datetime.now().date(),
+                time=datetime.now().time(),
+                reason=reason,
+            )
+            if debt_pay:
+                return (f"Sizning {debt_pay.amount}  {debt_pay.currency} miqdoridagi qarzidorligingiz"
+                        f" {repay_amount} {repay_currency} miqdori to'landi!")
+
 
     async def update_debt(self, intent: dict):
         try:
@@ -124,8 +166,9 @@ class Debt_Finance:
             debt.reason = intent["reason"]
         if "target_person" in intent:
             debt.target_person = intent["target_person"]
-        if "due_date" in intent:
+        if "due_date" in intent and intent["due_date"] !="":
             try:
+                print(intent["due_date"])
                 debt.due_date = datetime.strptime(intent["due_date"], "%d-%m-%Y")
             except ValueError:
                 return "❌ Noto'g'ri sana formati. Iltimos, DD-MM-YYYY formatda kiriting."
@@ -204,7 +247,7 @@ class Debt_Finance:
         for i, record in enumerate(queryset.order_by("date", "time"), start=1):
             time_str = record.time.strftime("%H:%M") if record.time else "--:--"
             date_str = record.date.strftime("%d/%m/%Y")
-            sign = 1 if record.action == "INCOME" else -1
+            sign = 1 if record.type == "TAKE" else -1
 
             # Track totals
             total_by_currency.setdefault(record.currency, 0)
@@ -212,7 +255,7 @@ class Debt_Finance:
 
             response_lines.append(
                 f"{i}. {record.amount} {record.currency} | {date_str} {time_str}\n"
-                f"📌 Turi: {'Qarz olish' if record.action == 'TAKE' else 'Qarz berish'}\n"
+                f"📌 Turi: {'Qarz olish' if record.type == 'TAKE' else 'Qarz berish'}\n"
                 f"📝 Sabab: {record.reason}\n"
             )
 

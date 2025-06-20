@@ -35,6 +35,7 @@
     - **document_id**: list of Id of document which provided to you.
     - **from**: The exchange money that currently have an amount.
     - **to**: The money that wanted to know the amount after the exchange.
+    - **repay_type**: The type of paying the debt that user is getting or giving the debt and returning GIVE or TAKE
 
     # Additional Clarifications
 
@@ -48,6 +49,22 @@
     # Examples
 
     -- Debt example --
+
+    **Input:** "Men Sadriddindan olgan bir million sum qarzimni besh yuz ming sumini to'ladim."
+
+    **Output:**
+    {{
+        "action": "repay_debt",
+        "type": "GIVE",
+        "target_person": "Sadriddin",
+        "date": "10/05/2025"
+        "time": "09:00" if user give the time else Time Zone Asia/Tashkent time
+        "amount":"1000000"
+        "currency":"UZS"
+        "repay_amount":"500000"
+        "repay_currency":"UZS"
+    }}
+
 
     **Input:** "Men jafardan olgan pullarimni hisobotini yubor"
 
