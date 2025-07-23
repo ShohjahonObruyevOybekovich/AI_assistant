@@ -15,6 +15,7 @@ from tg_bot.utils.ai import GptFunctions
 from tg_bot.utils.stt import stt
 from tg_bot.utils.translator import get_text, load_locales
 
+
 bot = Bot(token=TOKEN)
 gpt = GptFunctions()
 load_locales()
@@ -90,9 +91,8 @@ async def handle_phone(message: Message, state: FSMContext):
         await state.set_state(User.phone)
 
 
-
 @dp.message(lambda msg: not msg.voice and msg.text and msg.text.isalnum())
-async def ask_for_voice(msg:Message):
+async def ask_for_voice(msg: Message):
     await msg.answer("Menga ovozli xabar yuboring ...")
 
 
@@ -101,6 +101,7 @@ async def ask_for_voice(msg:Message):
 @dp.message(F.content_type == types.ContentType.VOICE)
 async def handle_voice(message: Message, bot: Bot):
     # Save voice to file
+
     file = await bot.get_file(message.voice.file_id)
     file_path = f"voice_{message.from_user.id}.ogg"
     destination_path = file_path.replace(".ogg", ".mp3")

@@ -138,7 +138,7 @@ class FinanceHandler:
         changed = data.get("changed", "")
 
         if not all([fin_type, old_value, new_value, changed]):
-            return  "❌ Iltimos, barcha ma'lumotlarni ulashing."
+            return "❌ Iltimos, barcha ma'lumotlarni ulashing."
 
         user = CustomUser.objects.filter(chat_id=self.user_id).first()
         if not user:
@@ -395,16 +395,15 @@ class FinanceHandler:
         except Exception as e:
             ic(e)
             user = CustomUser.objects.get(chat_id=self.user_id)
-            return get_text(user.language,"currency_fetch_error")
+            return get_text(user.language, "currency_fetch_error")
 
         rate_dict = {item["Ccy"]: float(item["Rate"].replace(",", "")) for item in rates}
 
         if from_currency not in rate_dict and from_currency != "UZS":
-            return  f"❌ {from_currency} valyutasi bazada mavjud emas."
+            return f"❌ {from_currency} valyutasi bazada mavjud emas."
 
         if to_currency not in rate_dict and to_currency != "UZS":
             return f"❌ {to_currency} valyutasi bazada mavjud emas."
-
 
         if from_currency == "UZS":
             amount_in_uzs = amount
@@ -425,5 +424,5 @@ class FinanceHandler:
     async def powered_by(self, data):
         lang = CustomUser.objects.get(chat_id=self.user_id).language
         return get_text(
-            lang,"powered_by"
+            lang, "powered_by"
         )

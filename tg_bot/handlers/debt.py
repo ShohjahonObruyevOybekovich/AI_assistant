@@ -124,7 +124,6 @@ class Debt_Finance:
             **filter
         ).first()
 
-
         if debt:
             debt_pay = Payed.objects.create(
                 user=user,
@@ -140,7 +139,6 @@ class Debt_Finance:
             if debt_pay:
                 return (f"Sizning {debt_pay.amount}  {debt_pay.currency} miqdoridagi qarzidorligingiz"
                         f" {repay_amount} {repay_currency} miqdori to'landi!")
-
 
     async def update_debt(self, intent: dict):
         try:
@@ -166,7 +164,7 @@ class Debt_Finance:
             debt.reason = intent["reason"]
         if "target_person" in intent:
             debt.target_person = intent["target_person"]
-        if "due_date" in intent and intent["due_date"] !="":
+        if "due_date" in intent and intent["due_date"] != "":
             try:
                 print(intent["due_date"])
                 debt.due_date = datetime.strptime(intent["due_date"], "%d-%m-%Y")
@@ -188,8 +186,7 @@ class Debt_Finance:
         """
         date_str = data.get("date", "")
         action_type = data.get("type").upper()
-        time_range = data.get("time","").strip()
-
+        time_range = data.get("time", "").strip()
 
         # --- Parse dates ---
         try:
